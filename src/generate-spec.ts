@@ -9,19 +9,64 @@ try {
   const res = await fetch(`http://127.0.0.1:${port}/openapi/json`);
   const spec = await res.json();
 
-  // Add x-fern-streaming extension to the chat completions endpoint
   if (spec.paths?.["/v1/chat/completions"]?.post) {
+    // x-fern-streaming: SSE format with [DONE] terminator
     spec.paths["/v1/chat/completions"].post["x-fern-streaming"] = {
-      "stream-condition": "stream",
+      format: "sse",
+      terminator: "[DONE]",
+      "stream-condition": "$request.stream",
       response: {
-        $ref: "#/components/schemas/ChatCompletionChunk",
+        $ref: "#/components/schemas/ChatCompletion",
       },
       "response-stream": {
         $ref: "#/components/schemas/ChatCompletionChunk",
       },
     };
 
-    // Add the chunk schema for Fern streaming
+    // Non-streaming response schema
+    spec.components.schemas.ChatCompletion = {
+      type: "object",
+      required: ["id", "object", "created", "model", "choices", "usage"],
+      properties: {
+        id: { type: "string" },
+        object: { type: "string", enum: ["chat.completion"] },
+        created: { type: "number" },
+        model: { type: "string" },
+        choices: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["index", "message", "finish_reason"],
+            properties: {
+              index: { type: "number" },
+              message: {
+                type: "object",
+                required: ["role", "content"],
+                properties: {
+                  role: { type: "string", enum: ["assistant"] },
+                  content: { type: "string" },
+                },
+              },
+              finish_reason: {
+                type: "string",
+                enum: ["stop", "length"],
+              },
+            },
+          },
+        },
+        usage: {
+          type: "object",
+          required: ["prompt_tokens", "completion_tokens", "total_tokens"],
+          properties: {
+            prompt_tokens: { type: "number" },
+            completion_tokens: { type: "number" },
+            total_tokens: { type: "number" },
+          },
+        },
+      },
+    };
+
+    // Streaming chunk schema
     spec.components.schemas.ChatCompletionChunk = {
       type: "object",
       required: ["id", "object", "created", "model", "choices"],
