@@ -1,0 +1,33 @@
+{
+  "name": "relay",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "start": "bun run dist/index.js",
+    "check": "biome check .",
+    "lint": "biome check --write .",
+    "format": "biome format --write .",
+    "clean": "rm -rf dist",
+    "generate:spec": "bun run src/generate-spec.ts",
+    "generate:sdk": "fern generate --local --group local --no-prompt"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^0.1.8",
+    "@elysiajs/openapi": "^1.2.5",
+    "ai": "^4.3.16",
+    "dotenv": "^17.2.3",
+    "elysia": "^1.2.25"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.6",
+    "@types/bun": "^1.2.10",
+    "fern-api": "3.90.7",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,16 @@
+[Unit]
+Description=Relay — AI Model Gateway
+After=network.target ollama.service
+Wants=ollama.service
+
+[Service]
+Type=simple
+User=joe
+WorkingDirectory=/home/joe/code/relay
+ExecStart=/usr/bin/bun run dist/index.js
+EnvironmentFile=/home/joe/code/relay/.env
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
