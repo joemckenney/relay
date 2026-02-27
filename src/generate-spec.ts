@@ -23,6 +23,27 @@ try {
       },
     };
 
+    // Reusable tool_calls schema
+    const toolCallSchema = {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["id", "type", "function"],
+        properties: {
+          id: { type: "string" },
+          type: { type: "string", enum: ["function"] },
+          function: {
+            type: "object",
+            required: ["name", "arguments"],
+            properties: {
+              name: { type: "string" },
+              arguments: { type: "string" },
+            },
+          },
+        },
+      },
+    };
+
     // Non-streaming response schema
     spec.components.schemas.ChatCompletion = {
       type: "object",
@@ -41,15 +62,22 @@ try {
               index: { type: "number" },
               message: {
                 type: "object",
-                required: ["role", "content"],
+                required: ["role"],
                 properties: {
-                  role: { type: "string", enum: ["assistant"] },
-                  content: { type: "string" },
+                  role: {
+                    type: "string",
+                    enum: ["assistant"],
+                  },
+                  content: {
+                    type: "string",
+                    nullable: true,
+                  },
+                  tool_calls: toolCallSchema,
                 },
               },
               finish_reason: {
                 type: "string",
-                enum: ["stop", "length"],
+                enum: ["stop", "length", "tool_calls"],
               },
             },
           },
@@ -72,7 +100,10 @@ try {
       required: ["id", "object", "created", "model", "choices"],
       properties: {
         id: { type: "string" },
-        object: { type: "string", enum: ["chat.completion.chunk"] },
+        object: {
+          type: "string",
+          enum: ["chat.completion.chunk"],
+        },
         created: { type: "number" },
         model: { type: "string" },
         choices: {
@@ -86,12 +117,39 @@ try {
                 type: "object",
                 properties: {
                   content: { type: "string" },
+                  tool_calls: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      required: ["index", "id", "type", "function"],
+                      properties: {
+                        index: { type: "number" },
+                        id: { type: "string" },
+                        type: {
+                          type: "string",
+                          enum: ["function"],
+                        },
+                        function: {
+                          type: "object",
+                          required: ["name", "arguments"],
+                          properties: {
+                            name: {
+                              type: "string",
+                            },
+                            arguments: {
+                              type: "string",
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
                 },
               },
               finish_reason: {
                 type: "string",
                 nullable: true,
-                enum: ["stop", "length", null],
+                enum: ["stop", "length", "tool_calls", null],
               },
             },
           },

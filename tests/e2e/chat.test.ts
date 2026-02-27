@@ -200,3 +200,122 @@ describe("streaming chat completion", () => {
     expect(streamedText).toContain("4");
   }, 120_000);
 });
+
+const weatherTool = {
+  type: "function" as const,
+  function: {
+    name: "get_weather",
+    description: "Get current weather for a location",
+    parameters: {
+      type: "object",
+      properties: { location: { type: "string" } },
+      required: ["location"],
+    },
+  },
+};
+
+describe("tool calling", () => {
+  test("non-streaming tool call with tool_choice required", async () => {
+    const result = await client.chat.createChatCompletion({
+      model: "small",
+      messages: [
+        { role: "user", content: "What is the weather in San Francisco?" },
+      ],
+      tools: [weatherTool],
+      tool_choice: "required",
+    });
+
+    expect(result.choices[0].finish_reason).toBe("tool_calls");
+    expect(result.choices[0].message.tool_calls?.length).toBeGreaterThan(0);
+    expect(result.choices[0].message.tool_calls?.[0]?.function.name).toBe(
+      "get_weather",
+    );
+    const args = JSON.parse(
+      result.choices[0].message.tool_calls?.[0]?.function.arguments ?? "{}",
+    );
+    expect(args).toHaveProperty("location");
+  }, 60_000);
+
+  test("multi-turn with tool result", async () => {
+    // Step 1: initial call that triggers a tool call
+    const first = await client.chat.createChatCompletion({
+      model: "small",
+      messages: [
+        { role: "user", content: "What is the weather in San Francisco?" },
+      ],
+      tools: [weatherTool],
+      tool_choice: "required",
+    });
+
+    const tcs = first.choices[0].message.tool_calls;
+    expect(tcs?.length).toBeGreaterThan(0);
+    const tc = tcs?.[0];
+
+    // Step 2: send back the assistant tool_calls message + tool result
+    const second = await client.chat.createChatCompletion({
+      model: "small",
+      messages: [
+        { role: "user", content: "What is the weather in San Francisco?" },
+        {
+          role: "assistant",
+          tool_calls: [
+            {
+              id: tc?.id ?? "",
+              type: "function",
+              function: {
+                name: tc?.function.name ?? "",
+                arguments: tc?.function.arguments ?? "{}",
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: JSON.stringify({ temperature: 62, condition: "foggy" }),
+          tool_call_id: tc?.id ?? "",
+        },
+      ],
+    });
+
+    // Model should produce a text response referencing the tool result
+    expect(second.choices[0].message.content?.length).toBeGreaterThan(0);
+    expect(second.choices[0].finish_reason).toBe("stop");
+  }, 120_000);
+
+  test("tool_choice none returns text only", async () => {
+    const result = await client.chat.createChatCompletion({
+      model: "small",
+      messages: [{ role: "user", content: "What is the weather?" }],
+      tools: [weatherTool],
+      tool_choice: "none",
+    });
+
+    expect(result.choices[0].message.tool_calls).toBeUndefined();
+    expect(result.choices[0].message.content?.length).toBeGreaterThan(0);
+  }, 60_000);
+
+  test("streaming tool call with tool_choice required", async () => {
+    const stream = await client.chat.createChatCompletionStream({
+      model: "small",
+      messages: [{ role: "user", content: "What is the weather in Tokyo?" }],
+      tools: [weatherTool],
+      tool_choice: "required",
+    });
+
+    const toolCallChunks: unknown[] = [];
+    let lastFinishReason: string | null | undefined = null;
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta;
+      if (delta?.tool_calls) {
+        toolCallChunks.push(...delta.tool_calls);
+      }
+      if (chunk.choices?.[0]?.finish_reason) {
+        lastFinishReason = chunk.choices[0].finish_reason;
+      }
+    }
+
+    expect(toolCallChunks.length).toBeGreaterThan(0);
+    expect(lastFinishReason).toBe("tool_calls");
+  }, 60_000);
+});
