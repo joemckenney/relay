@@ -11,6 +11,7 @@
     "build": "bun build src/index.ts --outdir dist --target bun",
     "start": "bun run dist/index.js",
     "check": "biome check .",
+    "deploy": "bun run build && sudo systemctl restart relay",
     "lint": "biome check --write .",
     "format": "biome format --write .",
     "test": "bun test",
